@@ -137,7 +137,6 @@ public final class GraalPyEngineFactory implements ScriptEngineFactory {
                 }
             }
         }
-        builder.option("python.PythonPath", "/home/datakurre/Work/github/datakurre/camunda-python/venv/lib/python3.10/site-packages");
         return builder.build();
     }
 
