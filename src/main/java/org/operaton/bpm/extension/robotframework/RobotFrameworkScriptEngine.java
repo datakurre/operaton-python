@@ -20,13 +20,54 @@ public final class RobotFrameworkScriptEngine extends PythonScriptEngine {
         super(factory);
         try {
             runner = super.compile("""
-            from io import StringIO
-            from robot.api import TestSuite
-            from robot.api.parsing import get_model
-            model = get_model(StringIO(locals()[".robot"]))
-            suite = TestSuite.from_model(model)
-            suite.run(output="NONE", log="NONE", report="NONE")
-            "Hello World"  # TODO ... listen to suite variables
+from io import StringIO
+from robot.api import TestSuite
+from robot.api.parsing import get_model
+from robot.api.interfaces import ListenerV3
+from robot import running
+from robot import result
+from robot.libraries import BuiltIn
+from typing import Set
+
+import json
+
+# Update Output Variable
+#     [Arguments]    ${name}    ${value}    ${scope}=global
+#     VAR    ${${name}}    ${value}    scope=${scope}
+
+WORK_ITEM = {}
+
+OUTPUT_MAPPING = {}
+
+if "variables" in locals():
+    WORK_ITEM.update({
+        json.loads(variables.toString())
+    })
+
+
+class InputVariablesListener(ListenerV3):
+    initial_global_variables: Set[str]
+
+    def start_suite(self, data: running.TestSuite, result: result.TestSuite):
+        builtin = BuiltIn.BuiltIn()
+        self.initial_global_variables = set(builtin.get_variables().keys())
+        for k, v in WORK_ITEM.items():
+            builtin.set_global_variable(f"${{{k}}}", v)
+
+    def end_suite(self, data: running.TestSuite, result: result.TestSuite):
+        builtin = BuiltIn.BuiltIn()
+        all_variables = builtin.get_variables()
+        if result.passed:
+            for k in set(all_variables) - self.initial_global_variables:
+                OUTPUT_MAPPING[k] = all_variables[k]
+
+
+model = get_model(StringIO(locals()[".robot"]))
+suite = TestSuite.from_model(model)
+suite.run(output=None, listener=InputVariablesListener())
+
+
+#S(json.dumps(OUTPUT_MAPPING), "application/json")
             """);
         } catch (ScriptException e) {
             runner = null;
@@ -41,10 +82,10 @@ public final class RobotFrameworkScriptEngine extends PythonScriptEngine {
 
     @Override
     public Bindings createBindings() {
-        GraalPyBindings bindings = (GraalPyBindings) defaultContext.getBindings(ScriptContext.ENGINE_SCOPE);
-        Set<String> keep = new HashSet<>();
-        keep.add(".robot");
-        bindings.clear(keep);
+        // GraalPyBindings bindings = (GraalPyBindings) defaultContext.getBindings(ScriptContext.ENGINE_SCOPE);
+        // Set<String> keep = new HashSet<>();
+        // keep.add(".robot");
+        // bindings.clear(keep);
         return new SimpleBindings();
     }
 
