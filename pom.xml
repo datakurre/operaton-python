@@ -95,7 +95,7 @@
         <configuration>
           <archive>
             <manifest>
-              <mainClass>org.operaton.bpm.extension.python.Application</mainClass>
+              <mainClass>org.operaton.bpm.extension.demo.Application</mainClass>
               <addClasspath>true</addClasspath>
             </manifest>
           </archive>

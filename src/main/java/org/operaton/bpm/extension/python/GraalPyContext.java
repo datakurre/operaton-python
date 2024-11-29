@@ -15,13 +15,13 @@ public class GraalPyContext implements ScriptContext {
 
     private static final String LANGUAGE_ID = "python";
     private Context context;
-    private final GraalPyEngineFactory factory;
+    private final PythonScriptEngineFactory factory;
     private final GraalPyPolyglotReader in;
     private final GraalPyPolyglotWriter out;
     private final GraalPyPolyglotWriter err;
     private Bindings globalBindings;
 
-    GraalPyContext(GraalPyEngineFactory factory) {
+    public GraalPyContext(PythonScriptEngineFactory factory) {
         this.factory = factory;
         this.context = factory.getContext(getBindings(ScriptContext.GLOBAL_SCOPE));
         this.in = new GraalPyPolyglotReader(new InputStreamReader(System.in));

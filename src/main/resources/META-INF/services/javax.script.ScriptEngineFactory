@@ -1,1 +1,2 @@
-org.operaton.bpm.extension.python.GraalPyEngineFactory
+org.operaton.bpm.extension.python.PythonScriptEngineFactory
+org.operaton.bpm.extension.robotframework.RobotFrameworkScriptEngineFactory

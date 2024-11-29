@@ -6,9 +6,9 @@ import javax.script.*;
 
 public final class GraalPyCompiledScript extends CompiledScript {
     private final Source source;
-    private final GraalPyScriptEngine engine;
+    private final PythonScriptEngine engine;
 
-    public GraalPyCompiledScript(Source src, GraalPyScriptEngine engine) {
+    public GraalPyCompiledScript(Source src, PythonScriptEngine engine) {
         this.source = src;
         this.engine = engine;
     }

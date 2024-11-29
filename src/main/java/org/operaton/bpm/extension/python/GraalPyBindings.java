@@ -32,18 +32,26 @@ public final class GraalPyBindings implements Bindings {
         return false;
     }
 
-    @Override
-    public void clear() {
-        Set<String> builtins = (Set<String>) get("__graalpy_builtins__");
-        if (builtins == null) {
-            put("__graalpy_builtins__", new HashSet<>(keySet()));
+    public void clear(Set<String> keep) {
+        Set<String> preset = (Set<String>) get("__graalpy_builtins__");
+        if (preset == null) {
+            Set<String> initial = new HashSet<>(keySet());
+            if (keep != null) {
+                initial.addAll(keep);
+            }
+            put("__graalpy_builtins__", initial);
         } else {
             Set<String> difference = new HashSet<>(keySet());
-            difference.removeAll(builtins);
+            difference.removeAll(preset);
             for (String s : difference) {
                remove(s);
             }
         }
+    }
+
+    @Override
+    public void clear() {
+        clear(null);
     }
 
     @Override

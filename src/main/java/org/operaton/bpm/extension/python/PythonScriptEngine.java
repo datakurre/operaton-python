@@ -9,13 +9,13 @@ import java.io.IOException;
 import java.io.Reader;
 
 
-public final class GraalPyScriptEngine implements ScriptEngine, Compilable, Invocable, AutoCloseable {
+public class PythonScriptEngine implements ScriptEngine, Compilable, Invocable, AutoCloseable {
 
     private static final String LANGUAGE_ID = "python";
-    private final GraalPyEngineFactory factory;
-    private GraalPyContext defaultContext;
+    private final PythonScriptEngineFactory factory;
+    protected GraalPyContext defaultContext;
 
-    GraalPyScriptEngine(GraalPyEngineFactory factory) {
+    public PythonScriptEngine(PythonScriptEngineFactory factory) {
         this.factory = factory;
         this.defaultContext = new GraalPyContext(factory);
     }
@@ -139,7 +139,7 @@ public final class GraalPyScriptEngine implements ScriptEngine, Compilable, Invo
     }
 
     @Override
-    public GraalPyEngineFactory getFactory() {
+    public PythonScriptEngineFactory getFactory() {
         return factory;
     }
 

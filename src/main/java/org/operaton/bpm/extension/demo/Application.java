@@ -1,4 +1,4 @@
-package org.operaton.bpm.extension.python;
+package org.operaton.bpm.extension.demo;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
