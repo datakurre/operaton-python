@@ -9,7 +9,7 @@
 
 > **⚠️ This project is developed with the assistance of AI coding agents.** All code, tests, and documentation may have been authored or co-authored by automated agents. Please review carefully before production use.
 
-An extension for [Operaton BPM](https://operaton.org/) that integrates [GraalPy](https://www.graalvm.org/python/) (GraalVM's Python implementation) as a JSR-223 script engine, enabling Python script tasks in BPMN process definitions. Also includes a GraalPy-based [Robot Framework](https://robotframework.org/) test runner for BPM process testing.
+An extension for [Operaton BPM](https://operaton.org/) that integrates [GraalPy](https://www.graalvm.org/python/) (GraalVM's Python implementation) as a JSR-223 script engine, enabling Python script tasks in BPMN process definitions. Also includes a GraalPy-based [Robot Framework](https://robotframework.org/) test runner for BPM process and DMN decision testing.
 
 ---
 
@@ -21,6 +21,8 @@ An extension for [Operaton BPM](https://operaton.org/) that integrates [GraalPy]
 - [Script Environment](#script-environment)
 - [Configuration Options](#configuration-options)
 - [Robot Framework](#robot-framework)
+  - [BPMN Process Keywords](#processengine-keyword-library-reference)
+  - [DMN Decision Keywords](#dmn-decision-keywords)
 - [Building](#building)
 - [Project Structure](#project-structure)
 - [Test Coverage](#test-coverage)
@@ -33,7 +35,7 @@ An extension for [Operaton BPM](https://operaton.org/) that integrates [GraalPy]
 This monorepo provides three Maven modules for integrating Python scripting into Operaton BPM:
 
 1. **`operaton-bpm-extension-python`** — JSR-223 `ScriptEngineFactory` that bridges Operaton's script task execution with GraalPy's polyglot Python runtime. Allows BPMN processes to use `scriptFormat="python"` in script tasks.
-2. **`operaton-bpm-extension-robot`** — GraalPy-based Robot Framework runner with an Operaton keyword library (`ProcessEngine`) for writing BPM process acceptance tests in `.robot` files.
+2. **`operaton-bpm-extension-robot`** — GraalPy-based Robot Framework runner with an Operaton keyword library (`ProcessEngine`) for writing BPM process and DMN decision acceptance tests in `.robot` files.
 3. **`operaton-bpm-extension-example`** — Spring Boot demo application showcasing Python script tasks with the Operaton web UI (Cockpit/Tasklist).
 
 ### Key Components
@@ -47,7 +49,7 @@ This monorepo provides three Maven modules for integrating Python scripting into
 | `PythonBindings` | `Bindings` implementation wrapping GraalPy's polyglot bindings |
 | `PythonResources` | Configures the GraalPy `Context` with VFS, Python home, and interpreter options |
 | `Robot` | CLI entry point for running Robot Framework test suites via GraalPy |
-| `ProcessEngine` | Robot Framework keyword library for Operaton BPM process testing |
+| `ProcessEngine` | Robot Framework keyword library for Operaton BPM process and DMN decision testing |
 
 ---
 
@@ -69,7 +71,7 @@ The core Python scripting extension. Add this to your Operaton deployment to ena
 
 ### operaton-bpm-extension-robot
 
-Robot Framework test runner with Operaton keyword library. Use this for BPM process acceptance testing.
+Robot Framework test runner with Operaton keyword library. Use this for BPM process and DMN decision acceptance testing.
 
 **Maven coordinates:**
 
@@ -282,6 +284,16 @@ The `ProcessEngine` library (scope: GLOBAL) provides the following keywords for 
 | **Set Variable** | `process_instance_id`, `variable_name`, `variable_value` | Sets a process variable on a running instance. |
 | **Get Tasks** | `process_instance_id` | Returns a list of all active tasks for the process instance. |
 
+#### DMN (Decision) Keywords
+
+| Keyword | Arguments | Description |
+|---|---|---|
+| **Evaluate Decision** | `decision_key`, `**variables` | Evaluates a deployed DMN decision by key. Variables are passed as keyword args. Returns a list of dicts (one per matched rule). |
+| **Evaluate Decision Table** | `decision_key`, `**variables` | Evaluates a deployed DMN decision table by key. Like Evaluate Decision but specifically for decision tables. |
+| **Decision Result Should Contain** | `result`, `output_name`, `expected_value` | Asserts that at least one matched rule contains the expected output value. |
+| **Decision Single Result** | `result` | Returns the single matched rule from the result. Fails if not exactly one rule matched. |
+| **Decision Single Entry** | `result` | Returns the single output value from a result with one matched rule and one output column. |
+
 ### Writing Robot Framework Test Suites
 
 #### Basic test structure
@@ -318,6 +330,32 @@ Variable Round-Trip
     ${value}=    Get Variable    ${instance}    myVar
     Should Be Equal    ${value}    hello-robot
 ```
+
+#### Testing DMN decision tables
+
+```robot
+*** Settings ***
+Library    ProcessEngine
+
+*** Test Cases ***
+
+Evaluate Gold Customer Discount
+    [Setup]    Setup Process Engine
+    [Teardown]    Teardown Process Engine
+    Deploy Resources    ${CURDIR}${/}discount.dmn
+    ${result}=    Evaluate Decision    discount    customerType=gold
+    ${entry}=    Decision Single Entry    ${result}
+    Should Be Equal As Integers    ${entry}    15
+
+Verify Decision Result Contains Expected Output
+    [Setup]    Setup Process Engine
+    [Teardown]    Teardown Process Engine
+    Deploy Resources    ${CURDIR}${/}discount.dmn
+    ${result}=    Evaluate Decision    discount    customerType=silver
+    Decision Result Should Contain    ${result}    discountPercent    10
+```
+
+The DMN keywords use Operaton's `DecisionService` API under the hood. Deploy `.dmn` files with `Deploy Resources` (same as BPMN), then evaluate decisions by key with input variables passed as keyword arguments. Results are returned as Python lists of dictionaries, with one dict per matched rule.
 
 #### Running test suites
 
@@ -420,7 +458,7 @@ operaton-bpm-extension-robot/           # Robot Framework Runner
   src/main/java/.../robot/
     Robot.java                            # CLI entry point
   src/main/resources/.../
-    ProcessEngine.py                      # Robot keyword library
+    ProcessEngine.py                      # Robot keyword library (BPMN + DMN)
     robot_runner.py                       # Robot execution bridge
 
 operaton-bpm-extension-example/         # Spring Boot Demo

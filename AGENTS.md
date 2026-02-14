@@ -2,24 +2,11 @@
 
 ## Project Identity
 
-**Name:** `operaton-bpm-extension-python`
-**Purpose:** GraalPy (Python) scripting integration for Operaton BPM via JSR-223
-**Last Activity:** November 29, 2024 (2 WIP commits)
-**Status:** Abandoned incomplete prototype
-
----
-
-## Git History
-
-| Date | Commit | Message |
-|---|---|---|
-| 2024-11-12 | `15026af` | First commit |
-| 2024-11-12 | `653e527` | Cleanup experiments |
-| 2024-11-29 | `7b94a0a` | Add robotframework support |
-| 2024-11-29 | `c186a91` | WIP |
-| 2024-11-29 | `16c39c9` | WIP |
-
-The project was developed over two sessions (~2 days of work) and left in a WIP state.
+**Name:** `operaton-bpm-extension-graalpy`
+**Purpose:** GraalPy (Python) scripting integration for Operaton BPM via JSR-223, plus a Robot Framework test runner for BPM process/decision acceptance testing
+**Repository:** https://github.com/operaton/operaton-python
+**License:** Apache 2.0
+**Status:** Active development (AI-assisted)
 
 ---
 
@@ -27,16 +14,24 @@ The project was developed over two sessions (~2 days of work) and left in a WIP 
 
 ### How It Works
 
-1. `GraalPyScriptEngineFactory` is registered via `META-INF/services/javax.script.ScriptEngineFactory` (Java SPI)
+1. `PythonScriptEngineFactory` is registered via `META-INF/services/javax.script.ScriptEngineFactory` (Java SPI)
 2. Operaton's `ScriptEngineManager` discovers it and requests engines for `scriptFormat="python"`
-3. The factory creates `GraalPyScriptEngine` instances that delegate to a shared GraalPy `Context`
+3. The factory creates `PythonScriptEngine` instances, each with its own isolated GraalPy `Context`
 4. Python scripts in BPMN script tasks are evaluated via GraalPy's polyglot API
-5. Process variables are exposed through `Bindings` backed by GraalPy's polyglot bindings
+5. Process variables are injected through `Bindings` backed by GraalPy's polyglot bindings, via a proper `ScriptContext` implementation
 6. A `spin.py` script environment auto-imports Operaton Spin's `S()` function
 
-### Spring Boot Application
+### Robot Framework Runner
 
-The `Application.java` bootstraps a Spring Boot app with:
+The `operaton-bpm-extension-robot` module provides:
+1. `Robot.java` — CLI entry point that creates a GraalPy `Context` and runs Robot Framework's `run_cli()`
+2. `ProcessEngine.py` — A Robot Framework keyword library (scope: GLOBAL) that wraps Operaton's Java API for BPM process testing
+3. `robot_runner.py` — A variable bridge that injects/captures Robot variables for programmatic execution
+4. Robot Framework 7.1.1 is bundled via GraalPy's VFS (virtual file system) through `graalpy-maven-plugin`
+
+### Spring Boot Example Application
+
+`Application.java` bootstraps a Spring Boot app with:
 - Operaton BPM REST API (`operaton-bpm-spring-boot-starter-rest`)
 - Operaton Cockpit/Tasklist web UI (`operaton-bpm-spring-boot-starter-webapp`)
 - Operaton Spin for JSON/XML handling
@@ -45,66 +40,101 @@ The `Application.java` bootstraps a Spring Boot app with:
 
 ---
 
-## Implementation Status by Class
+## Module Structure
 
-### ✅ Fully Implemented
+### operaton-bpm-extension-python (Core JSR-223 Engine)
 
-| Class | Notes |
-|---|---|
-| `Application.java` | Spring Boot entry point with demo user setup |
-| `GraalPyContextBuilder.java` | Context configuration (has one TODO about deprecated constant GR-54915) |
-| `GraalPyCompiledScript.java` | Pre-parsed script evaluation (but ignores ScriptContext parameter) |
+| Class | Status | Notes |
+|---|---|---|
+| `PythonScriptEngineFactory` | ✅ Complete | JSR-223 SPI factory; creates isolated engine instances |
+| `PythonScriptEngine` | ✅ Complete | Implements `ScriptEngine`, `Compilable`, `Invocable`, `AutoCloseable`; each instance owns its own GraalPy `Context` |
+| `PythonCompiledScript` | ✅ Complete | Pre-parsed Python source for repeated evaluation |
+| `PythonScriptContext` | ✅ Complete | Proper ENGINE_SCOPE / GLOBAL_SCOPE differentiation |
+| `PythonBindings` | ✅ Complete | `Bindings` wrapping GraalPy polyglot bindings |
+| `PythonResources` | ✅ Complete | Configures GraalPy Context with VFS, Python home, interpreter options |
 
-### ⚠️ Partially Implemented
+### operaton-bpm-extension-robot (Robot Framework Runner)
 
-| Class | Issues |
-|---|---|
-| `GraalPyScriptEngine.java` | `close()` prints to stdout instead of cleaning up; `eval(String, ScriptContext)` and `eval(Reader, ScriptContext)` ignore the ScriptContext parameter; `invokeMethod` and `invokeFunction` throw `UnsupportedOperationException`; `getInterface()` methods return `null`; `createBindings()` returns `null` |
-| `GraalPyScriptEngineFactory.java` | `getMethodCallSyntax()`, `getOutputStatement()`, `getProgram()` are stubbed (return `null`) |
-| `GraalPyBindings.java` | `putAll()` is empty (no-op) |
-| `GraalPyScriptContext.java` | `setBindings()` is empty; `getScopes()` always creates a new list; no real scope differentiation between ENGINE_SCOPE and GLOBAL_SCOPE |
+| File | Status | Notes |
+|---|---|---|
+| `Robot.java` | ✅ Complete | CLI entry point for running `.robot` suites |
+| `ProcessEngine.py` | ✅ BPMN + DMN | Keywords for BPMN process and DMN decision testing |
+| `robot_runner.py` | ✅ Complete | Variable bridge for programmatic Robot execution |
 
-### ❌ Not Implemented
+### operaton-bpm-extension-example (Spring Boot Demo)
 
-| Feature | Notes |
-|---|---|
-| Tests | No `src/test/` directory exists; zero test coverage |
-| Robot Framework integration | `robot.py` is an empty file; `robotframework==7.1.1` is bundled but unused |
-| Native image support | Maven profile exists but `native-image/` config dir has only `.gitkeep` |
-| Proper resource cleanup | `close()` does not release GraalPy Context |
-| Thread safety | Single shared Context across all engine instances |
+| File | Status | Notes |
+|---|---|---|
+| `Application.java` | ✅ Complete | Spring Boot entry with demo user setup |
 
 ---
 
-## Critical Architectural Concerns
+## Test Coverage
 
-### 1. Shared GraalPy Context (High Risk)
+Test coverage is measured with JaCoCo (0.8.12). Current instruction coverage for the Python module is **~93%**.
 
-`GraalPyScriptEngineFactory` creates **one** `Context` at construction time and shares it across all `GraalPyScriptEngine` instances. This causes:
-- **State leakage** between script executions (Python globals persist)
-- **Thread-safety issues** — GraalPy Contexts are not thread-safe by default
-- Operaton executes scripts from multiple threads concurrently
+### operaton-bpm-extension-python (8 test classes, ~75 test methods)
 
-**Recommendation:** Create a new Context per engine instance, or use Context pooling with proper synchronization. The `allowAllAccess(true)` flag is set but does not make Contexts thread-safe.
+| Test Class | Scope |
+|---|---|
+| `PythonScriptEngineTest` | 39 tests — eval, ScriptContext handling, bindings, compilation, invocation, isolation, close |
+| `PythonScriptEngineFactoryTest` | 19 tests — factory metadata, engine names, MIME types, language info |
+| `PythonBindingsTest` | 17 tests — size/empty, contains, get, put, remove, collection views |
+| `PythonScriptContextTest` | 22 tests — bindings management, attributes, I/O streams, scopes |
+| `PythonProcessEngineTest` | 2 tests — Operaton engine integration with Python scripts |
+| `PythonSpinIntegrationTest` | 1 test — Spin `S()` function from Python |
+| `PythonResourcesTest` | 5 tests — GraalPy context configuration |
+| `PythonConcurrencyTest` | 1 test — 4-thread concurrent execution |
 
-### 2. ScriptContext Ignored (High Risk)
+### operaton-bpm-extension-robot (4 test classes, ~6 test methods)
 
-The `eval(String, ScriptContext)` and `eval(Reader, ScriptContext)` methods in `GraalPyScriptEngine` **ignore the ScriptContext parameter** and call `eval(String)` / `eval(Reader)` directly. Operaton passes process variables (execution, task, etc.) through the ScriptContext's bindings. This means:
-- Process variables may not be accessible from Python scripts
-- The integration may silently fail or produce incorrect results
+| Test Class | Scope |
+|---|---|
+| `RobotCliTest` | 2 tests — basic Robot CLI invocation, suite execution |
+| `ProcessEngineKeywordTest` | 2 tests — BPMN keyword end-to-end, task completion |
+| `VariableBridgeTest` | 1 test — variable round-trip through Robot Framework |
+| `DecisionTableTest` | 1 test — DMN decision table evaluation via Robot keywords |
 
-**Recommendation:** Extract bindings from the provided ScriptContext and inject them into the GraalPy evaluation context before script execution.
+---
 
-### 3. No Scope Differentiation (Medium Risk)
+## Key Design Decisions
 
-`GraalPyScriptContext` maps both `ENGINE_SCOPE` and `GLOBAL_SCOPE` to the same underlying Python bindings. The JSR-223 spec expects these to be separate namespaces.
+### Engine Isolation (Resolved)
 
-### 4. Resource Leaks (Medium Risk)
+Each `PythonScriptEngine` instance owns its own GraalPy `Context`. This provides:
+- **No state leakage** between script executions
+- **Thread safety** — concurrent executions on separate engine instances don't interfere
+- **Clean globals** — each engine starts with a fresh Python namespace
 
-`GraalPyScriptEngine.close()` prints `"GraalPyScriptEngine.close()"` to stdout but does not:
-- Close the GraalPy Context
-- Release I/O streams
-- Clean up any allocated resources
+### ScriptContext Handling (Resolved)
+
+The `eval(String, ScriptContext)` methods properly extract bindings from the provided `ScriptContext` and inject them into the GraalPy evaluation context. Operaton process variables are correctly accessible from Python scripts.
+
+### Scope Differentiation (Resolved)
+
+`PythonScriptContext` provides proper ENGINE_SCOPE / GLOBAL_SCOPE differentiation with separate underlying bindings.
+
+---
+
+## What's Missing
+
+### DMN (Decision Model and Notation) Enhancements
+
+Basic DMN support is implemented with `Evaluate Decision`, `Evaluate Decision Table`, `Decision Result Should Contain`, `Decision Single Result`, and `Decision Single Entry` keywords. Remaining work:
+- Multi-output decision table testing
+- DRG (Decision Requirements Graph) evaluation keywords
+- Testing decisions embedded in BPMN processes (Business Rule Tasks)
+- Typed variable input support (integer, double, boolean, date)
+- `Collect Entries` keyword for extracting all values of a specific output column
+
+### Additional Robot Framework Keywords
+
+The `ProcessEngine` library could be extended with:
+- Message correlation keywords
+- Signal event keywords
+- Timer manipulation keywords
+- History query keywords
+- Multi-instance/subprocess assertion keywords
 
 ---
 
@@ -112,42 +142,39 @@ The `eval(String, ScriptContext)` and `eval(Reader, ScriptContext)` methods in `
 
 ### Nix/devenv Setup
 
-- `devenv.yaml` — Defines inputs (nixpkgs 25.11, custom mvn2nix/devcontainer modules)
+- `devenv.yaml` — Defines inputs (nixpkgs, custom modules)
 - `devenv.nix` — JDK 21, formatting tools, devcontainer profile
 - `devenv.local.nix.example` — VS Code extensions and Podman/GPG tweaks
-- `flake.nix` — Legacy Nix flake (references `.nix/` directory that doesn't exist in repo)
 
 ### Makefile
 
-The Makefile references `org.operaton.bpm.extension.robot` package paths which don't match the actual source (`org.operaton.bpm.extension.python`). This is a leftover from a rename/refactor.
-
----
-
-## `py/` Subdirectory
-
-The `py/python/` directory contains an **unrelated standalone GraalPy example** from Oracle's GraalPy documentation (Apache-licensed reference code). It has its own `pom.xml` with `org.example` groupId and is not part of the main build. This is reference material, not production code.
+```
+build:    mvn package -DskipTests
+test:     mvn test
+check:    mvn verify
+format:   google-java-format -i $(JAVA_FILES)
+clean:    mvn clean
+run:      mvn -pl operaton-bpm-extension-example spring-boot:run
+start:    mvn install -DskipTests && mvn -pl operaton-bpm-extension-example spring-boot:run
+```
 
 ---
 
 ## File Inventory
 
-### Source Files (7 Java classes)
-- `src/main/java/org/operaton/bpm/extension/python/Application.java`
-- `src/main/java/org/operaton/bpm/extension/python/GraalPyBindings.java`
-- `src/main/java/org/operaton/bpm/extension/python/GraalPyCompiledScript.java`
-- `src/main/java/org/operaton/bpm/extension/python/GraalPyContextBuilder.java`
-- `src/main/java/org/operaton/bpm/extension/python/GraalPyScriptContext.java`
-- `src/main/java/org/operaton/bpm/extension/python/GraalPyScriptEngine.java`
-- `src/main/java/org/operaton/bpm/extension/python/GraalPyScriptEngineFactory.java`
+### Source Files
+- **8 Java main classes** — 6 (python) + 1 (robot) + 1 (example)
+- **12 Java test classes** — 8 (python) + 4 (robot)
+- **3 Python files** — `spin.py`, `robot_runner.py`, `ProcessEngine.py`
+- **4 Robot files** — `Example.robot`, `CompleteTask.robot`, `VariableBridge.robot`, `DecisionTable.robot`
+- **6 BPMN files** — 3 (python tests) + 2 (example) + 1 (robot tests)
+- **1 DMN file** — `discount.dmn` (robot tests)
+- **4 POM files** — parent + 3 modules
+- **3 Native image configs** — `reflect-config.json`, `native-image.properties`, `resource-config.json`
+- **2 Engine configs** — `operaton.cfg.xml`, `operaton-spin.cfg.xml`
+- **1 SPI file** — `javax.script.ScriptEngineFactory`
 
-### Resource Files
-- `src/main/resources/META-INF/services/javax.script.ScriptEngineFactory`
-- `src/main/resources/org.graalvm.python.vfs/src/robot.py` (empty)
-- `src/main/resources/script/env/python/spin.py`
-
-### BPMN Examples
-- `example-python-script-task.bpmn`
-- `example-js-script-task.bpmn` (misleading name — actually uses Python)
-
-### Build/Dev Config
-- `pom.xml`, `Makefile`, `devenv.yaml`, `devenv.nix`, `flake.nix`
+### Key Properties
+- Java 17+, GraalPy 25.0.2, Operaton 1.0.3, Spring Boot 3.3.3
+- Robot Framework 7.1.1 (bundled via GraalPy VFS)
+- JaCoCo 0.8.12 for coverage
