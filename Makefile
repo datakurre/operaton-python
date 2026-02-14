@@ -1,28 +1,34 @@
 JAVA := $(shell which java)
+JAVA_FILES := $(shell find . -name "*.java" -path "*/src/*" -type f)
 
 .PHONY: all
 all: build
 
 .PHONY: build
 build:
-	mvn -Pnative package
+	mvn package -DskipTests
 
-.PHONY: robot
-robot:
-	mvn exec:exec -Dexec.executable="$(JAVA)" -Dexec.args="-cp %classpath org.operaton.bpm.extension.robot.Robot ${SUITE}"
+.PHONY: test
+test:
+	mvn test
 
-.PHONY: src/main/resources/META-INF/native-image/org.operaton.bpm.extension.robot/operaton-bpm-extension-robot/reachability-metadata.json
-src/main/resources/META-INF/native-image/org.operaton.bpm.extension.robot/operaton-bpm-extension-robot/reachability-metadata.json:
-	mvn exec:exec -Dexec.executable="$(JAVA)" -Dexec.args="-agentlib:native-image-agent=caller-filter-file=$(PWD)=caller-filter.json,config-output-dir=$(PWD)/src/main/resources/META-INF/native-image/org.operaton.bpm.extension.robot/operaton-bpm-extension-robot -cp %classpath org.operaton.bpm.extension.robot.Robot $(PWD)/example"
+.PHONY: check
+check:
+	mvn verify
 
-trace-output.json:
-	mvn exec:exec -Dexec.executable="$(JAVA)" -Dexec.args="-agentlib:native-image-agent=trace-output=$(PWD)/trace-file.json -cp %classpath org.operaton.bpm.extension.robot.Robot $(PWD)/example"
+.PHONY: format
+format:
+	google-java-format -i $(JAVA_FILES)
 
 .PHONY: clean
 clean:
-	$(RM) src/main/resources/META-INF/native-image/org.operaton.bpm.extension.robot/operaton-bpm-extension-robot/reachability-metadata.json
+	mvn clean
 
-.PHONY: shell
-shell:
-	nix develop
+.PHONY: run
+run:
+	mvn -pl operaton-bpm-extension-example spring-boot:run
 
+.PHONY: start
+start:
+	mvn install -DskipTests
+	mvn -pl operaton-bpm-extension-example spring-boot:run

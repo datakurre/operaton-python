@@ -1,7 +1,19 @@
 .idea/
+
+# Devenv
+.devenv*
+.devcontainer.json
+devenv.local.nix
+
+# direnv
+.direnv
 .vscode/
-__pycache__/
-log.html
-output.xml
-report.html
-target/
+
+# Maven build output (all modules)
+**/target/
+
+# pre-commit
+.pre-commit-config.yaml
+
+# Agents
+TODO*
